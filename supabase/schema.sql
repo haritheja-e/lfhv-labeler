@@ -79,6 +79,39 @@ from pairs p
 left join labels l on l.pair_id = p.id
 group by p.id;
 
+-- Admin RPC: per-pair vote rows joined with labeler emails.
+-- SECURITY DEFINER so it can read auth.users; any authenticated caller
+-- can see all results. Tighten this if you ever open the labeler pool.
+create or replace function get_pair_results()
+returns table (
+  pair_id uuid,
+  option_a_label text,
+  option_b_label text,
+  choice text,
+  labeler_id uuid,
+  labeler_email text,
+  view_duration_ms int,
+  created_at timestamptz
+) security definer language sql stable as $$
+  select
+    p.id as pair_id,
+    va.label as option_a_label,
+    vb.label as option_b_label,
+    l.choice,
+    l.labeler_id,
+    u.email::text as labeler_email,
+    l.view_duration_ms,
+    l.created_at
+  from pairs p
+  join videos va on va.id = p.video_a_id
+  join videos vb on vb.id = p.video_b_id
+  left join labels l on l.pair_id = p.id
+  left join auth.users u on u.id = l.labeler_id
+  order by va.label nulls last, l.created_at nulls last;
+$$;
+
+grant execute on function get_pair_results() to authenticated;
+
 -- Row Level Security
 alter table videos enable row level security;
 alter table pairs enable row level security;
