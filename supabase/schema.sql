@@ -62,7 +62,7 @@ returns table (
   video_a_url text,
   video_b_url text,
   current_count bigint
-) language sql stable as $$
+) language sql stable security definer as $$
   with my_email as (
     select email::text as email from auth.users where id = p_labeler_id
   ),
@@ -99,6 +99,8 @@ returns table (
   order by count(l.id) desc, random()
   limit 1;
 $$;
+
+grant execute on function get_next_pair(uuid, uuid[]) to authenticated;
 
 -- Progress view for the admin page.
 create or replace view pair_progress as
