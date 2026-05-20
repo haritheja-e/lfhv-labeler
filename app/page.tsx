@@ -19,7 +19,7 @@ export default async function Home() {
     <main className="min-h-screen flex flex-col">
       <header className="flex items-center justify-between px-6 py-3 border-b border-neutral-800">
         <div className="text-sm">
-          <span className="font-semibold">A/B Labeling</span>
+          <span className="font-semibold">Object Tracking Evaluation</span>
           <span className="text-neutral-400 ml-3">
             {user!.email} · {count ?? 0} submitted
           </span>
