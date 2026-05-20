@@ -23,6 +23,11 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
   // Persistent layout per pair so navigating back shows the same arrangement.
   const layoutsRef = useRef<Map<string, Layout>>(new Map());
 
+  // Synchronous lock to block double-trigger races (button+keyboard, rapid clicks)
+  // that would otherwise let two submitLabel/getNextPair calls fire before the
+  // submitting state flush, causing duplicate history entries.
+  const busyRef = useRef(false);
+
   const leftRef = useRef<HTMLVideoElement>(null);
   const rightRef = useRef<HTMLVideoElement>(null);
 
@@ -52,7 +57,8 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
 
   const choose = useCallback(
     async (c: Choice) => {
-      if (!pair || submitting) return;
+      if (!pair || busyRef.current) return;
+      busyRef.current = true;
       setSubmitting(true);
       try {
         const next = await submitLabel(
@@ -63,11 +69,17 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
         );
         // Mark this pair as chosen in history
         setHistory((h) => h.map((e, i) => (i === idx ? { ...e, myChoice: c } : e)));
-        // Advance: at end → append fetched pair; else → walk forward
         if (atEnd) {
           if (next) {
-            setHistory((h) => [...h, { pair: next, myChoice: null }]);
-            setIdx((i) => i + 1);
+            // Defense in depth: never append a pair that's already in history.
+            setHistory((h) =>
+              h.some((e) => e.pair.pair_id === next.pair_id)
+                ? h
+                : [...h, { pair: next, myChoice: null }]
+            );
+            setIdx((i) =>
+              history.some((e) => e.pair.pair_id === next.pair_id) ? i : i + 1
+            );
           }
           // else: no more pairs; stay on this one
         } else {
@@ -77,10 +89,11 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
         console.error(e);
         alert("Failed to submit — try again.");
       } finally {
+        busyRef.current = false;
         setSubmitting(false);
       }
     },
-    [pair, submitting, shownAt, excludeIds, atEnd, idx]
+    [pair, shownAt, excludeIds, atEnd, idx, history]
   );
 
   const chooseSide = useCallback(
@@ -96,22 +109,31 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
   }, [hasPrev]);
 
   const goNext = useCallback(async () => {
+    if (busyRef.current) return;
     if (!atEnd) {
       setIdx((i) => i + 1);
       return;
     }
-    // At end of history → fetch a new pair (skip current without labeling)
+    busyRef.current = true;
     setSubmitting(true);
     try {
       const next = await getNextPair(excludeIds);
       if (next) {
-        setHistory((h) => [...h, { pair: next, myChoice: null }]);
-        setIdx((i) => i + 1);
+        // Defense in depth: dedupe in case excludeIds was stale.
+        setHistory((h) =>
+          h.some((e) => e.pair.pair_id === next.pair_id)
+            ? h
+            : [...h, { pair: next, myChoice: null }]
+        );
+        setIdx((i) =>
+          history.some((e) => e.pair.pair_id === next.pair_id) ? i : i + 1
+        );
       }
     } finally {
+      busyRef.current = false;
       setSubmitting(false);
     }
-  }, [atEnd, excludeIds]);
+  }, [atEnd, excludeIds, history]);
 
   const playBoth = useCallback(() => {
     leftRef.current?.play();
@@ -210,8 +232,6 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
 
       <div className="text-center text-xs text-neutral-500 mt-3">
         Pair {idx + 1} of {history.length}
-        <span className="mx-2 text-neutral-700">·</span>
-        {pair.current_count}/3 labels on this pair
         {myChoice && (
           <>
             <span className="mx-2 text-neutral-700">·</span>
