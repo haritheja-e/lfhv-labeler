@@ -36,17 +36,42 @@ create table if not exists labels (
 create index if not exists labels_pair_idx on labels(pair_id);
 create index if not exists labels_labeler_idx on labels(labeler_id);
 
+-- Per-labeler assignment list. If a labeler has any rows here, they only see
+-- the pairs they're assigned. If they have zero rows here, they see all pairs.
+create table if not exists assignments (
+  id uuid primary key default gen_random_uuid(),
+  pair_id uuid not null references pairs(id) on delete cascade,
+  labeler_email text not null,
+  created_at timestamptz default now(),
+  unique (pair_id, labeler_email)
+);
+create index if not exists assignments_email_idx on assignments(labeler_email);
+
 -- Pick the next pair for a labeler:
+--   - if labeler has assignments, only consider pairs assigned to them
 --   - exclude pairs they've already labeled
+--   - exclude pairs already in the caller's session history (p_exclude_ids)
 --   - exclude pairs that already have 3 labels
 --   - prefer pairs with the most existing labels (so partial pairs finish first)
-create or replace function get_next_pair(p_labeler_id uuid)
+create or replace function get_next_pair(
+  p_labeler_id uuid,
+  p_exclude_ids uuid[] default array[]::uuid[]
+)
 returns table (
   pair_id uuid,
   video_a_url text,
   video_b_url text,
   current_count bigint
 ) language sql stable as $$
+  with my_email as (
+    select email::text as email from auth.users where id = p_labeler_id
+  ),
+  has_assignments as (
+    select exists(
+      select 1 from assignments
+      where labeler_email = (select email from my_email)
+    ) as flag
+  )
   select
     p.id as pair_id,
     va.url as video_a_url,
@@ -56,10 +81,19 @@ returns table (
   join videos va on va.id = p.video_a_id
   join videos vb on vb.id = p.video_b_id
   left join labels l on l.pair_id = p.id
-  where not exists (
+  where (
+    not (select flag from has_assignments)
+    or exists (
+      select 1 from assignments a
+      where a.pair_id = p.id
+        and a.labeler_email = (select email from my_email)
+    )
+  )
+  and not exists (
     select 1 from labels lx
     where lx.pair_id = p.id and lx.labeler_id = p_labeler_id
   )
+  and not (p.id = any(p_exclude_ids))
   group by p.id, va.url, vb.url
   having count(l.id) < 3
   order by count(l.id) desc, random()
@@ -116,6 +150,11 @@ grant execute on function get_pair_results() to authenticated;
 alter table videos enable row level security;
 alter table pairs enable row level security;
 alter table labels enable row level security;
+alter table assignments enable row level security;
+
+drop policy if exists "assignments readable by authenticated" on assignments;
+create policy "assignments readable by authenticated"
+  on assignments for select to authenticated using (true);
 
 drop policy if exists "videos readable by authenticated" on videos;
 create policy "videos readable by authenticated"

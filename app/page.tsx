@@ -24,12 +24,7 @@ export default async function Home() {
             {user!.email} · {count ?? 0} submitted
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <a href="/admin" className="text-sm text-neutral-400 hover:text-white">
-            Progress
-          </a>
-          <SignOutButton />
-        </div>
+        <SignOutButton />
       </header>
       <LabelingInterface initialPair={pair} />
     </main>
