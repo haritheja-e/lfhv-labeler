@@ -181,7 +181,7 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
       : "right";
 
   return (
-    <div className="flex-1 flex flex-col px-6 py-4 max-w-5xl mx-auto w-full">
+    <div className="flex-1 flex flex-col px-6 py-4">
       {/* Videos */}
       <div className="grid grid-cols-2 gap-4">
         {(["left", "right"] as const).map((side) => {
@@ -226,7 +226,7 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
             className={`w-[calc(50%-0.5rem)] px-4 py-3 rounded font-medium disabled:opacity-50 ${
               myChoice === "tie"
                 ? "bg-green-600 ring-2 ring-green-300"
-                : "bg-neutral-700 hover:bg-neutral-600"
+                : "bg-blue-600 hover:bg-blue-500"
             }`}
           >
             {myChoice === "tie" ? "✓ " : ""}Tie
@@ -247,33 +247,38 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
         )}
       </div>
 
-      {/* Prev — Big Play/Pause — Next */}
-      <div className="flex items-center justify-center gap-6 mt-3">
-        <button
-          onClick={goPrev}
-          disabled={!hasPrev || submitting}
-          className="px-5 py-3 rounded border border-neutral-700 hover:bg-neutral-900 disabled:opacity-30"
-          aria-label="Previous pair"
-        >
-          ← Previous
-        </button>
-
-        <button
-          onClick={togglePlay}
-          className="w-24 h-24 rounded-lg bg-blue-600 hover:bg-blue-500 flex items-center justify-center text-5xl"
-          aria-label={isPlaying ? "Pause" : "Play"}
-        >
-          {isPlaying ? "⏸" : "▶"}
-        </button>
-
-        <button
-          onClick={goNext}
-          disabled={submitting}
-          className="px-5 py-3 rounded border border-neutral-700 hover:bg-neutral-900 disabled:opacity-50"
-          aria-label="Next pair"
-        >
-          Next →
-        </button>
+      {/* Prev — Big Play/Pause — Next. 3-col grid guarantees play is
+          page-centered regardless of prev/next button widths. */}
+      <div className="grid grid-cols-3 items-center mt-3">
+        <div className="flex justify-end pr-6">
+          <button
+            onClick={goPrev}
+            disabled={!hasPrev || submitting}
+            className="px-5 py-3 rounded border border-neutral-700 hover:bg-neutral-900 disabled:opacity-30"
+            aria-label="Previous pair"
+          >
+            ← Previous
+          </button>
+        </div>
+        <div className="flex justify-center">
+          <button
+            onClick={togglePlay}
+            className="w-24 h-24 rounded-lg bg-blue-600 hover:bg-blue-500 flex items-center justify-center text-5xl"
+            aria-label={isPlaying ? "Pause" : "Play"}
+          >
+            {isPlaying ? "⏸" : "▶"}
+          </button>
+        </div>
+        <div className="flex justify-start pl-6">
+          <button
+            onClick={goNext}
+            disabled={submitting}
+            className="px-5 py-3 rounded border border-neutral-700 hover:bg-neutral-900 disabled:opacity-50"
+            aria-label="Next pair"
+          >
+            Next →
+          </button>
+        </div>
       </div>
     </div>
   );
