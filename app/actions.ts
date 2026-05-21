@@ -9,6 +9,7 @@ export type NextPair = {
   pair_id: string;
   video_a_url: string;
   video_b_url: string;
+  original_url: string | null;
   current_count: number;
 } | null;
 

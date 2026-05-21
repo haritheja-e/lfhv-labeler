@@ -24,6 +24,7 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
   const layoutsRef = useRef<Map<string, Layout>>(new Map());
   const busyRef = useRef(false);
 
+  const originalRef = useRef<HTMLVideoElement>(null);
   const leftRef = useRef<HTMLVideoElement>(null);
   const rightRef = useRef<HTMLVideoElement>(null);
 
@@ -48,9 +49,10 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
     setShownAt(Date.now());
     // Defer one tick so the new <video> elements (keyed by pair_id) are
     // mounted before we call play(). autoPlay covers the common case but
-    // this guarantees both clips start together even if the browser stalls
+    // this guarantees all clips start together even if the browser stalls
     // one of them.
     const t = setTimeout(() => {
+      void originalRef.current?.play().catch(() => {});
       void leftRef.current?.play().catch(() => {});
       void rightRef.current?.play().catch(() => {});
     }, 0);
@@ -150,11 +152,15 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
   const togglePlay = useCallback(() => {
     const left = leftRef.current;
     const right = rightRef.current;
+    const orig = originalRef.current;
     if (!left || !right) return;
-    if (left.paused || right.paused) {
-      void left.play();
-      void right.play();
+    const anyPaused = left.paused || right.paused || (orig?.paused ?? false);
+    if (anyPaused) {
+      void orig?.play().catch(() => {});
+      void left.play().catch(() => {});
+      void right.play().catch(() => {});
     } else {
+      orig?.pause();
       left.pause();
       right.pause();
     }
@@ -198,10 +204,38 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
       ? "left"
       : "right";
 
+  const hasOriginal = !!pair.original_url;
+  // 3-column grid when an original is available, else 2-column (Option 1/2).
+  const videoGridCols = hasOriginal ? "grid-cols-3" : "grid-cols-2";
+
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      {/* Videos */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Videos: optional Original column + Option 1 + Option 2 */}
+      <div className={`grid ${videoGridCols} gap-4`}>
+        {hasOriginal && (
+          <div className="flex flex-col">
+            <div className="text-center text-sm text-neutral-400 mb-2">
+              Original
+            </div>
+            <video
+              key={`${pair.pair_id}-original`}
+              ref={originalRef}
+              src={pair.original_url!}
+              loop
+              playsInline
+              autoPlay
+              muted
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              className="w-full rounded bg-black aspect-video"
+            />
+            {/* Spacer to keep this column's video aligned with the option
+                columns, which have a Pick button below the video. */}
+            <div className="mt-3 px-4 py-3 invisible" aria-hidden="true">
+              spacer
+            </div>
+          </div>
+        )}
         {(["left", "right"] as const).map((side) => {
           const isPicked = pickedSide === side;
           return (
@@ -237,9 +271,13 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
         })}
       </div>
 
-      {/* Tie button — centered, same width as one Pick button */}
-      <div className="grid grid-cols-2 gap-4 mt-3">
-        <div className="col-start-1 col-end-3 flex justify-center">
+      {/* Tie button — same width as one Pick button, aligned under the gap
+          between Option 1 and Option 2. With an Original column present
+          (3-col grid) the Tie button spans the two right columns; without
+          it (2-col grid), it spans both option columns. */}
+      <div className={`grid ${videoGridCols} gap-4 mt-3`}>
+        {hasOriginal && <div />}
+        <div className="col-span-2 flex justify-center">
           <button
             onClick={() => choose("tie")}
             disabled={submitting}

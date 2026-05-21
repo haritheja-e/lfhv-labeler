@@ -17,10 +17,15 @@ create table if not exists pairs (
   id uuid primary key default gen_random_uuid(),
   video_a_id uuid not null references videos(id) on delete cascade,
   video_b_id uuid not null references videos(id) on delete cascade,
+  original_video_id uuid references videos(id) on delete set null,
   created_at timestamptz default now(),
   unique (video_a_id, video_b_id),
   check (video_a_id <> video_b_id)
 );
+
+-- For repos that pre-date this column.
+alter table pairs add column if not exists original_video_id uuid
+  references videos(id) on delete set null;
 
 -- One row per (pair, labeler). UNIQUE prevents the same person labeling twice.
 create table if not exists labels (
@@ -53,6 +58,10 @@ create index if not exists assignments_email_idx on assignments(labeler_email);
 --   - exclude pairs already in the caller's session history (p_exclude_ids)
 --   - exclude pairs that already have 3 labels
 --   - prefer pairs with the most existing labels (so partial pairs finish first)
+-- Function signature changed (added original_url). Drop the old one explicitly
+-- because PostgreSQL won't replace a function whose return columns differ.
+drop function if exists get_next_pair(uuid, uuid[]);
+
 create or replace function get_next_pair(
   p_labeler_id uuid,
   p_exclude_ids uuid[] default array[]::uuid[]
@@ -61,6 +70,7 @@ returns table (
   pair_id uuid,
   video_a_url text,
   video_b_url text,
+  original_url text,
   current_count bigint
 ) language sql stable security definer as $$
   with my_email as (
@@ -76,10 +86,12 @@ returns table (
     p.id as pair_id,
     va.url as video_a_url,
     vb.url as video_b_url,
+    vo.url as original_url,
     count(l.id) as current_count
   from pairs p
   join videos va on va.id = p.video_a_id
   join videos vb on vb.id = p.video_b_id
+  left join videos vo on vo.id = p.original_video_id
   left join labels l on l.pair_id = p.id
   where (
     not (select flag from has_assignments)
@@ -94,7 +106,7 @@ returns table (
     where lx.pair_id = p.id and lx.labeler_id = p_labeler_id
   )
   and not (p.id = any(p_exclude_ids))
-  group by p.id, va.url, vb.url
+  group by p.id, va.url, vb.url, vo.url
   having count(l.id) < 3
   order by count(l.id) desc, random()
   limit 1;
