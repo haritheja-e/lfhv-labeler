@@ -64,6 +64,11 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
   const choose = useCallback(
     async (c: Choice) => {
       if (!pair || busyRef.current) return;
+      // Clicking the same choice that's already recorded is a no-op so users
+      // can't accidentally double-advance by clicking twice.
+      if (myChoice === c) return;
+
+      const isEdit = myChoice !== null;
       busyRef.current = true;
       setSubmitting(true);
       try {
@@ -74,6 +79,11 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
           excludeIds
         );
         setHistory((h) => h.map((e, i) => (i === idx ? { ...e, myChoice: c } : e)));
+
+        // Editing an existing choice: stay in place so the user sees the
+        // update reflected on the same pair instead of being yanked forward.
+        if (isEdit) return;
+
         if (atEnd) {
           if (next) {
             setHistory((h) =>
@@ -96,7 +106,7 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
         setSubmitting(false);
       }
     },
-    [pair, shownAt, excludeIds, atEnd, idx, history]
+    [pair, myChoice, shownAt, excludeIds, atEnd, idx, history]
   );
 
   const chooseSide = useCallback(
