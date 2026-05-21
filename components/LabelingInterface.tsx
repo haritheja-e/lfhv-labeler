@@ -43,10 +43,18 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
     return l;
   }, [pair?.pair_id]);
 
-  // Reset shownAt and play state on pair change.
+  // Reset shownAt + autoplay both videos on pair change.
   useEffect(() => {
     setShownAt(Date.now());
-    setIsPlaying(false);
+    // Defer one tick so the new <video> elements (keyed by pair_id) are
+    // mounted before we call play(). autoPlay covers the common case but
+    // this guarantees both clips start together even if the browser stalls
+    // one of them.
+    const t = setTimeout(() => {
+      void leftRef.current?.play().catch(() => {});
+      void rightRef.current?.play().catch(() => {});
+    }, 0);
+    return () => clearTimeout(t);
   }, [pair?.pair_id]);
 
   const excludeIds = useMemo(() => history.map((e) => e.pair.pair_id), [history]);
@@ -197,6 +205,8 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
                 src={urlForSide(side)}
                 loop
                 playsInline
+                autoPlay
+                muted
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 className="w-full rounded bg-black aspect-video"
