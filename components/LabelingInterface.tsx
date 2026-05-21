@@ -295,14 +295,6 @@ export function LabelingInterface({ initialPair }: { initialPair: NextPair }) {
       {/* Status line */}
       <div className="text-center text-xs text-neutral-500 mt-4">
         Pair {idx + 1} of {history.length}
-        {myChoice && (
-          <>
-            <span className="mx-2 text-neutral-700">·</span>
-            <span className="text-neutral-300">
-              Your choice: <span className="font-mono text-green-400">{myChoice}</span>
-            </span>
-          </>
-        )}
       </div>
 
       {/* Prev — Big Play/Pause — Next. 3-col grid guarantees play is
