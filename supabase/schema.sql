@@ -187,6 +187,12 @@ create policy "labels insertable by self"
   on labels for insert to authenticated
   with check (labeler_id = auth.uid());
 
+drop policy if exists "labels updatable by self" on labels;
+create policy "labels updatable by self"
+  on labels for update to authenticated
+  using (labeler_id = auth.uid())
+  with check (labeler_id = auth.uid());
+
 drop policy if exists "labels deletable by self" on labels;
 create policy "labels deletable by self"
   on labels for delete to authenticated
